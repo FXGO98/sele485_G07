@@ -50,13 +50,13 @@ ISR(USART_RX_vect){	// Interrupt responsável por tratar dos dados recebidos
 void rs485_send(uint8_t slave_id, uint8_t data){
   
   PORTC |= (1<<PC0);	// Permite a transmissão (enable no max485)
-  /*
-  while(!( UCSR0A & (1<<UDRE0)));
-  UCSR0B |= (1<<TXB80);  // Para enviar frames de dados
-  UDR0 = slave_id; 
-	*/
-  while(!( UCSR0A & (1<<UDRE0)));
-  UCSR0B &= ~(1<<TXB80); 
+  
+  while(!( UCSR0A & (1<<UDRE0)));	// Espera até o buffer do TX esteja vazio
+  UCSR0B |= (1<<TXB80);  // Para enviar frames de endereço
+  UDR0 = slave_id; // Envia o adreço do slave a falar com
+	
+  while(!( UCSR0A & (1<<UDRE0))); // Espera até o buffer do TX esteja vazio
+  UCSR0B &= ~(1<<TXB80); // Para enviar frames de dados
   UDR0 = data;    // Envia o byte de dados a enviar
  
   PORTC &= ~(1<<PC0); // Desativa a transmissão (enable no max485)
@@ -66,7 +66,6 @@ void rs485_send(uint8_t slave_id, uint8_t data){
 int main(void){
   
   DDRB &= ~((1<<PB0)|(1<<PB1)|(1<<PB2)|(1<<PB3));	// Define as entradas dos DIP switches
-  //PORTB |= ((1<<PB0)|(1<<PB1)|(1<<PB2)|(1<<PB3));	// Define os pull-ups para os DIP switches
   
   DDRC |= (1<<PC0);	// Define o pin de w/r como saída
   
