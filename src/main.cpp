@@ -36,10 +36,14 @@ volatile uint8_t id = 0x00;
 static uint8_t b1_prev = 1, b2_prev = 1;
 
 
-ISR(PCINT0_vect)
+ISR(PCINT0_vect) //Handling address changing
 {
   // Define o id do device lendo o input dos DIP Switches
   id = PINB & ((1 << D0)|(1 << D1)|(1 << D2)|(1 << D3));
+
+  usart_init();
+   
+  sei();
 }
 
 
@@ -47,34 +51,43 @@ ISR(PCINT0_vect)
 ISR(USART_RX_vect){	// Interrupt responsável por tratar dos dados recebidos
 
   static uint8_t error, frame_addr, frame_data;
+
+  while (!(UCSR0A & (1<<RXC0))); //A testar se tem de ficar aqui
   
   error = UCSR0A;
   frame_addr = UCSR0B;
   frame_data = UDR0;
+
 	
   if ( error & ((1<<FE0)|(1<<DOR0)|(1<<UPE0)) )
     return;
+
   
   if(frame_addr & (1<<RXB80)){        // Caso seja uma frame de endereço
-	
+
     if(frame_data == id){	// Caso esta frame seja destinada para este slave permite a recepção de pacotes de dados
-    	UCSR0A &= ~(1<<MPCM0);	
-    }else{
+    	UCSR0A &= ~(1<<MPCM0);
+    }
+    
+    else{
     	UCSR0A |= (1<<MPCM0);
     }
- 	return;
-  }else{   // Só é possível entrar neste modo se for o slave que se encontra selecionad
- 
+ 	  
+     return;
+  }
+  
+  else if (!(UCSR0A & (1<<MPCM0))){   // Só é possível entrar neste modo se for o slave que se encontra selecionad
+
     switch(frame_data){
        	case 0x00:
-    		PORTB &= ~(1 << PB5);
+    		PORTB &= ~(1 << LED);
         break;
-        case 0x01:
-        	PORTB |= (1 << PB5);
+        case 0x0F:
+        	PORTB |= (1 << LED);
         break;        
       }
     
-     UCSR0A |= (1<<MPCM0);
+    UCSR0A |= (1<<MPCM0);
   }
 	
 }
@@ -111,21 +124,22 @@ void usart_init()
   UBRR0L = (uint8_t)BRC;
 
 
-  // Define que usa 9-bits, paridade impar e 1 stop-bit
-  UCSR0C = (1<<UCSZ00)|(1<<UCSZ01)|(1<<UPM00)|(1<<UPM01)|(0<<USBS0);
-  UCSR0B = (1<<UCSZ02);
-
-
   if(id == 0x00)
   {
-    UCSR0B = (1<<TXEN0);	// Define que suporta transmissão
+    UCSR0B |= (1<<TXEN0);	// Define que suporta transmissão
   }
   else
   {
-    UCSR0B = (1<<RXEN0);	// Define que suporta recepção
+    UCSR0B |= (1<<RXEN0);	// Define que suporta recepção
     UCSR0A |= (1<<MPCM0);	// Define que o slave ignora todas as mensagens que não sejam de endereço
     UCSR0B |= (1 << RXCIE0);  // Faz enable dos interrupts ao receber um pacote
   }
+
+
+  // Define que usa 9-bits, paridade impar e 1 stop-bit
+  UCSR0C |= (1<<UCSZ00)|(1<<UCSZ01)|(1<<UPM00)|(1<<UPM01)|(0<<USBS0);
+  UCSR0B |= (1<<UCSZ02);
+
   
 }
 
@@ -161,7 +175,7 @@ int main(void){
       if(!(PINC & (1<<B1))){	// Verifica se o botão 1 foi premido ou não, para evitar enviar repetidamente dados, verifica se houve um transiçao
         
         if(b1_prev){
-          rs485_send(SLAVE1,0x01);
+          rs485_send(SLAVE1,0x0F);
           b1_prev = 0x00;
         }
       }
@@ -180,7 +194,7 @@ int main(void){
       if(!(PINC & (1<<B2))){ // Verifica se o botão 2 foi premido ou não, para evitar enviar repetidamente dados, verifica se houve um transiçao
         
         if(b2_prev){
-          rs485_send(SLAVE2,0x01);
+          rs485_send(SLAVE2,0x0F);
           b2_prev = 0x00;
         }
       
@@ -201,7 +215,7 @@ int main(void){
     else{
     
       PORTC &= ~(1<<W_R_ENABLE); // Desativa a transmissão (enable no max485)
-
+      
     }
     
   }
