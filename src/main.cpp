@@ -36,61 +36,8 @@ volatile uint8_t id = 0x00;
 static uint8_t b1_prev = 1, b2_prev = 1;
 
 
-ISR(PCINT0_vect) //Handling address changing
-{
-  // Define o id do device lendo o input dos DIP Switches
-  id = PINB & ((1 << D0)|(1 << D1)|(1 << D2)|(1 << D3));
-
-  usart_init();
-   
-  sei();
-}
 
 
-
-ISR(USART_RX_vect){	// Interrupt responsável por tratar dos dados recebidos
-
-  static uint8_t error, frame_addr, frame_data;
-
-  while (!(UCSR0A & (1<<RXC0))); //A testar se tem de ficar aqui
-  
-  error = UCSR0A;
-  frame_addr = UCSR0B;
-  frame_data = UDR0;
-
-	
-  if ( error & ((1<<FE0)|(1<<DOR0)|(1<<UPE0)) )
-    return;
-
-  
-  if(frame_addr & (1<<RXB80)){        // Caso seja uma frame de endereço
-
-    if(frame_data == id){	// Caso esta frame seja destinada para este slave permite a recepção de pacotes de dados
-    	UCSR0A &= ~(1<<MPCM0);
-    }
-    
-    else{
-    	UCSR0A |= (1<<MPCM0);
-    }
- 	  
-     return;
-  }
-  
-  else if (!(UCSR0A & (1<<MPCM0))){   // Só é possível entrar neste modo se for o slave que se encontra selecionad
-
-    switch(frame_data){
-       	case 0x00:
-    		PORTB &= ~(1 << LED);
-        break;
-        case 0x0F:
-        	PORTB |= (1 << LED);
-        break;        
-      }
-    
-    UCSR0A |= (1<<MPCM0);
-  }
-	
-}
 
 
 void PCINT0_setup()
@@ -220,4 +167,58 @@ int main(void){
     
   }
   
+}
+
+ISR(PCINT0_vect) //Handling address changing
+{
+  // Define o id do device lendo o input dos DIP Switches
+  id = PINB & ((1 << D0)|(1 << D1)|(1 << D2)|(1 << D3));
+
+  usart_init();
+   
+  sei();
+}
+
+ISR(USART_RX_vect){	// Interrupt responsável por tratar dos dados recebidos
+
+  static uint8_t error, frame_addr, frame_data;
+
+  while (!(UCSR0A & (1<<RXC0))); //A testar se tem de ficar aqui
+  
+  error = UCSR0A;
+  frame_addr = UCSR0B;
+  frame_data = UDR0;
+
+	
+  if ( error & ((1<<FE0)|(1<<DOR0)|(1<<UPE0)) )
+    return;
+
+  
+  if(frame_addr & (1<<RXB80)){        // Caso seja uma frame de endereço
+
+    if(frame_data == id){	// Caso esta frame seja destinada para este slave permite a recepção de pacotes de dados
+    	UCSR0A &= ~(1<<MPCM0);
+    }
+    
+    else{
+    	UCSR0A |= (1<<MPCM0);
+    }
+ 	  
+     return;
+  }
+  
+  else if (!(UCSR0A & (1<<MPCM0))){   // Só é possível entrar neste modo se for o slave que se encontra selecionad
+
+    switch(frame_data){
+       	case 0x00:
+    		PORTB &= ~(1 << LED);
+        break;
+        case 0x0F:
+        	PORTB |= (1 << LED);
+        break;        
+      }
+    
+    UCSR0A |= (1<<MPCM0);
+  }
+	
 }
